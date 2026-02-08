@@ -1,0 +1,5 @@
+<Bindings>
+  <Binding name="RELOAD_RELOADUI" category="Miscellaneous">
+    Reload_ReloadUI();
+  </Binding>
+</Bindings>

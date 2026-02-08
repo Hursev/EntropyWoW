@@ -1,0 +1,14 @@
+## Interface: 120000
+## Title: !My Addon
+## Notes: Displays <Combat End> at specific coordinates.
+## Author: Hursev
+## Version: 1.0
+## Category: !My
+
+
+CombatEndDisplay.lua
+ReadyCheckReminder.lua
+Reload.lua
+GuildTagFix.lua
+StaticTextOverlay.lua
+Guild.lua

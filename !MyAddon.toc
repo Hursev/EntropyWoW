@@ -1,6 +1,6 @@
 ## Interface: 120000
 ## Title: !My Addon
-## Notes: Displays <Combat End> at specific coordinates.
+## Notes:  My Collection of LUA scripts.
 ## Author: Hursev
 ## Version: 1.0
 ## Category: !My

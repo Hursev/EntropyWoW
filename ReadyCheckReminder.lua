@@ -6,6 +6,10 @@ File Description:
     On ReadyCheck sends chat whisper and/or voice alert to yourself, like "Did you start Recording?"
 ]]
 
+-------------------------------------------------
+-- CONFIG
+-------------------------------------------------
+
 local CFG = {
 
     Enabled = false,    -- Enable/Disable the entire functionality
@@ -18,6 +22,10 @@ local CFG = {
     SpeakSpeed = 3,     -- The speed of the speech. 0 is normal speed. Range is usually -10 to 10.
     SpeakVolume = 50,   -- How loud it is. 100 is max volume.
 }
+
+-------------------------------------------------
+-- Code
+-------------------------------------------------
 
 local thisCharacter -- player's full name. Lazy init.
 

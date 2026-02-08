@@ -5,6 +5,20 @@
 File Description:
     Displays "<Combat End>" when the character exits combat
 ]]
+
+-------------------------------------------------
+-- CONFIG
+-------------------------------------------------
+
+local CFG = {
+    Enabled = true,
+
+    TextOnScreenTime = 3 -- For how long to keep the text on screen. Range: 1..10
+}
+
+-------------------------------------------------
+-- Code
+-------------------------------------------------
  
  -- Create the display frame
 local displayFrame = CreateFrame("Frame", nil, UIParent)
@@ -22,10 +36,11 @@ local eventHandler = CreateFrame("Frame")
 eventHandler:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 eventHandler:SetScript("OnEvent", function()
+    if ~CFG.Enabled then return end
     displayFrame:Show()
     
     -- Simple timer: Hide the frame after 2 seconds
-    C_Timer.After(2, function()
+    C_Timer.After(CFG.TextOnScreenTime, function()
         displayFrame:Hide()
     end)
 end)

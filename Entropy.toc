@@ -1,11 +1,15 @@
 ## Interface: 120000
-## Title: !My Addon
+## Title: Entropy Addon
 ## Notes:  My Collection of LUA scripts.
 ## Author: Hursev
 ## Version: 1.0
 ## Category: !My
 
+# Libs
+# Disabled
+# embeds.xml
 
+# Core
 CombatEndDisplay.lua
 ReadyCheckReminder.lua
 Reload.lua

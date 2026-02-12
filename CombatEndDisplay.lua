@@ -36,7 +36,7 @@ local eventHandler = CreateFrame("Frame")
 eventHandler:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 eventHandler:SetScript("OnEvent", function()
-    if ~CFG.Enabled then return end
+    if CFG.Enabled == false then return end
     displayFrame:Show()
     
     -- Simple timer: Hide the frame after 2 seconds

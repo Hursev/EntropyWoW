@@ -13,39 +13,55 @@ File Description:
 local ADDON_NAME = ...
 local GP = CreateFrame("Frame")
 
+-- Libraries
+-- local AceConfig = LibStub("AceConfig-3.0")
+-- local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+-- local AceDB = LibStub("AceDB-3.0")
+
 -------------------------------------------------
 -- CONFIG
 -------------------------------------------------
+--local defaults = {
+--  profile = {
 local CFG = {
 
-    FONT_SIZE = 12,            -- Font size used for all table text
+        FONT_SIZE = 12,            -- Font size used for all table text
 
-    PANEL_W = 80,             -- Width of the minimap attached summary panel
-    PANEL_H = 24,              -- Height of the minimap summary panel
+        PANEL_W = 80,             -- Width of the minimap attached summary panel
+        PANEL_H = 24,              -- Height of the minimap summary panel
 
-    PANEL_OFFSET_X = 0,        -- Offset of the main panel 
-    PANEL_OFFSET_Y = -2,    
+        PANEL_OFFSET_X = 0,        -- Offset of the main panel 
+        PANEL_OFFSET_Y = -2,    
 
-    ROW_H = 18,                -- Height of each table row (affects virtualization math)
-    HEADER_H = 20,             -- Height of table header row
+        ROW_H = 18,                -- Height of each table row (affects virtualization math)
+        HEADER_H = 20,             -- Height of table header row
 
-    TABLE_W = 760,             -- Width of hover table frame
-    TABLE_H = 800,             -- Max Height of hover table frame (viewport height)
+        TABLE_W = 760,             -- Width of hover table frame
+        TABLE_H = 800,             -- Max Height of hover table frame (viewport height)
 
-    BG_ALPHA = 0.90,           -- Background transparency of table (0=transparent,1=opaque)
+        BG_ALPHA = 0.90,           -- Background transparency of table (0=transparent,1=opaque)
 
-    ZONE_COLOR = {0.4,1,0.4},  -- RGB color used when guild member is in player's zone
+        ZONE_COLOR = {0.4,1,0.4},  -- RGB color used when guild member is in player's zone
 
-    HOVER_CLOSE_DIST = 20,     -- Distance in pixels mouse can leave table before closing
+        HOVER_CLOSE_DIST = 20,     -- Distance in pixels mouse can leave table before closing
 
-    INITIAL_DELAY = 3,         -- Seconds after login before initial async cache build starts
+        INITIAL_DELAY = 3,         -- Seconds after login before initial async cache build starts
 
-    CACHE_CHUNK = 50,          -- Number of roster entries processed per async chunk
+        CACHE_CHUNK = 50,          -- Number of roster entries processed per async chunk
 
-    REGION = "us",             -- RaiderIO region used when querying profiles
+        REGION = "us",             -- RaiderIO region used when querying profiles
 
-    VIRTUAL_EXTRA_ROWS = 3,    -- Extra rows rendered above/below viewport to prevent pop-in
-}
+        VIRTUAL_EXTRA_ROWS = 3,    -- Extra rows rendered above/below viewport to prevent pop-in
+    }
+--    }
+--}
+
+--local db = LibStub("AceDB-3.0"):New("Entropy_Guild", defaults); -- true)
+--local function CFG() return db.profile end
+-- Then throughout your code, replace `CFG.FONT_SIZE` with `CFG().FONT_SIZE`
+--local CFG = db.profile -- CFG points to saved settings
+-- CFG = LibStub("AceDBOptions-3.0"):GetOptionsTable(db);
+
 local TABLE_TOP_PADDING = 8
 local TABLE_BOTTOM_PADDING = 8
 
@@ -64,6 +80,249 @@ local COLOR_UNKNOWN = {219/255, 48/255, 225/255} -- pink
 
 local DEBUG = false
 
+--[[
+-------------------------------------------------
+-- UI Options
+-------------------------------------------------
+
+-- Options table definition
+local options = {
+    type = "group",
+    name = "Guild Panel",
+    args = {
+        display = {
+            type = "group",
+            name = "Display Settings",
+            inline = true,
+            args = {
+                FONT_SIZE = {
+                    type = "range",
+                    name = "Font Size",
+                    desc = "Size of text in the guild panel",
+                    min = 8,
+                    max = 20,
+                    step = 1,
+                    order = 1,
+                    get = function() return CFG.FONT_SIZE end,
+                    set = function(_, val) 
+                        CFG.FONT_SIZE = val
+                        -- You may want to call a refresh function here
+                    end,
+                },
+                PANEL_W = {
+                    type = "range",
+                    name = "Panel Width",
+                    desc = "Width of the minimap panel",
+                    min = 50,
+                    max = 150,
+                    step = 5,
+                    order = 2,
+                    get = function() return CFG.PANEL_W end,
+                    set = function(_, val) 
+                        CFG.PANEL_W = val
+                        main:SetWidth(val)
+                    end,
+                },
+                PANEL_H = {
+                    type = "range",
+                    name = "Panel Height",
+                    desc = "Height of the minimap panel",
+                    min = 16,
+                    max = 40,
+                    step = 2,
+                    order = 3,
+                    get = function() return CFG.PANEL_H end,
+                    set = function(_, val) 
+                        CFG.PANEL_H = val
+                        --main:SetHeight(val)
+                    end,
+                },
+                PANEL_OFFSET_X = {
+                    type = "range",
+                    name = "Panel X Offset",
+                    desc = "Horizontal offset from minimap",
+                    min = -100,
+                    max = 100,
+                    step = 1,
+                    order = 4,
+                    get = function() return CFG.PANEL_OFFSET_X end,
+                    set = function(_, val) 
+                        CFG.PANEL_OFFSET_X = val
+                        main:ClearAllPoints()
+                        main:SetPoint("TOPLEFT", Minimap, "BOTTOMLEFT", CFG.PANEL_OFFSET_X, CFG.PANEL_OFFSET_Y)
+                    end,
+                },
+                PANEL_OFFSET_Y = {
+                    type = "range",
+                    name = "Panel Y Offset",
+                    desc = "Vertical offset from minimap",
+                    min = -100,
+                    max = 100,
+                    step = 1,
+                    order = 5,
+                    get = function() return CFG.PANEL_OFFSET_Y end,
+                    set = function(_, val) 
+                        CFG.PANEL_OFFSET_Y = val
+                        main:ClearAllPoints()
+                        main:SetPoint("TOPLEFT", Minimap, "BOTTOMLEFT", CFG.PANEL_OFFSET_X, CFG.PANEL_OFFSET_Y)
+                    end,
+                },
+                BG_ALPHA = {
+                    type = "range",
+                    name = "Background Opacity",
+                    desc = "Transparency of the table background",
+                    min = 0,
+                    max = 1,
+                    step = 0.05,
+                    isPercent = true,
+                    order = 6,
+                    get = function() return CFG.BG_ALPHA end,
+                    set = function(_, val) 
+                        CFG.BG_ALPHA = val
+                        panel:SetBackdropColor(0, 0, 0, CFG.BG_ALPHA)
+                    end,
+                },
+            },
+        },
+        table = {
+            type = "group",
+            name = "Table Settings",
+            inline = true,
+            args = {
+                TABLE_W = {
+                    hidden = true,
+                    type = "range",
+                    name = "Table Width",
+                    desc = "Width of the guild member table",
+                    min = 400,
+                    max = 1200,
+                    step = 20,
+                    order = 1,
+                    get = function() return CFG.TABLE_W end,
+                    set = function(_, val) 
+                        CFG.TABLE_W = val
+                        panel:SetWidth(val)
+                        content:SetWidth(val - 30)
+                    end,
+                },
+                TABLE_H = {
+                    type = "range",
+                    name = "Table Max Height",
+                    desc = "Maximum height of the guild member table",
+                    min = 400,
+                    max = 1500,
+                    step = 50,
+                    order = 2,
+                    get = function() return CFG.TABLE_H end,
+                    set = function(_, val) 
+                        CFG.TABLE_H = val
+                        UpdatePanelHeight()
+                    end,
+                },
+                ROW_H = {
+                    type = "range",
+                    name = "Row Height",
+                    desc = "Height of each row in the table",
+                    min = 14,
+                    max = 24,
+                    step = 2,
+                    order = 3,
+                    get = function() return CFG.ROW_H end,
+                    set = function(_, val) 
+                        CFG.ROW_H = val
+                        -- Would need to rebuild table rows
+                        if tableOpen then
+                            CloseTable()
+                            C_Timer.After(0.1, OpenTable)
+                        end
+                    end,
+                },
+                HOVER_CLOSE_DIST = {
+                    type = "range",
+                    name = "Hover Close Distance",
+                    desc = "Distance in pixels mouse can leave table before it closes",
+                    min = 0,
+                    max = 100,
+                    step = 5,
+                    order = 4,
+                    get = function() return CFG.HOVER_CLOSE_DIST end,
+                    set = function(_, val) 
+                        CFG.HOVER_CLOSE_DIST = val
+                    end,
+                },
+            },
+        },
+        colors = {
+            type = "group",
+            name = "Color Settings",
+            inline = true,
+            args = {
+                ZONE_COLOR = {
+                    type = "color",
+                    name = "Same Zone Color",
+                    desc = "Color used when a guild member is in your zone",
+                    order = 1,
+                    hasAlpha = false,
+                    get = function() 
+                        return CFG.ZONE_COLOR[1], CFG.ZONE_COLOR[2], CFG.ZONE_COLOR[3]
+                    end,
+                    set = function(_, r, g, b) 
+                        CFG.ZONE_COLOR[1] = r
+                        CFG.ZONE_COLOR[2] = g
+                        CFG.ZONE_COLOR[3] = b
+                        if tableOpen then
+                            UpdateVisibleRows()
+                        end
+                    end,
+                },
+            },
+        },
+        raiderio = {
+            type = "group",
+            name = "RaiderIO Settings",
+            inline = true,
+            args = {
+                REGION = {
+                    type = "select",
+                    name = "Region",
+                    desc = "Your region for RaiderIO lookups",
+                    order = 1,
+                    values = {
+                        us = "US - Americas",
+                        eu = "EU - Europe",
+                        kr = "KR - Korea",
+                        tw = "TW - Taiwan",
+                        cn = "CN - China",
+                    },
+                    get = function() return CFG.REGION end,
+                    set = function(_, val) 
+                        CFG.REGION = val
+                        -- Clear cache to force re-fetch with new region
+                        if cacheReady then
+                            wipe(cacheByName)
+                            cacheReady = false
+                            StartInitialBuild()
+                        end
+                    end,
+                },
+            },
+        },
+    },
+}
+
+-- Register options
+--AceConfig:RegisterOptionsTable("Entropy_Guild", options)
+--AceConfigDialog:AddToBlizOptions("Entropy_Guild", "Guild Panel") -- , "Entropy"
+AceConfig:RegisterOptionsTable("Entropy_Guild", options)
+AceConfigDialog:AddToBlizOptions("Entropy_Guild", "Entropy_Guild") -- , "Entropy"
+
+-- Slash command to open settings
+SLASH_ENTROPY1 = "/entropyguild"
+SLASH_ENTROPY2 = "/my"
+SlashCmdList["ENTROPY"] = function()
+    AceConfigDialog:Open("Entropy_Guild")
+end
+]]
 -------------------------------------------------
 -- State
 -------------------------------------------------
@@ -84,8 +343,8 @@ local partyMembers = {}
 -------------------------------------------------
 -- Fonts
 -------------------------------------------------
-local FONT_N = "Interface\\AddOns\\!MyAddon\\Media\\PTSansNarrow.ttf"
-local FONT_B = "Interface\\AddOns\\!MyAddon\\Media\\PTSansNarrow-Bold.ttf"
+local FONT_N = "Interface\\AddOns\\Entropy\\Media\\PTSansNarrow.ttf"
+local FONT_B = "Interface\\AddOns\\Entropy\\Media\\PTSansNarrow-Bold.ttf"
 
 
 -------------------------------------------------
@@ -937,6 +1196,7 @@ GP:RegisterEvent("GROUP_ROSTER_UPDATE")
 GP:SetScript("OnEvent", function(self,e)
 
     if e=="PLAYER_LOGIN" then
+        -- print(string.format("|cFF00FF00[My.Guild]|r SetFont %s, %s", FONT_N, tostring(CFG.FONT_SIZE)))
         playerZone=GetRealZoneText() or ""
 
         C_Timer.After(CFG.INITIAL_DELAY,function()

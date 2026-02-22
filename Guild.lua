@@ -31,7 +31,7 @@ local CFG = {
         PANEL_H = 24,              -- Height of the minimap summary panel
 
         PANEL_OFFSET_X = 0,        -- Offset of the main panel 
-        PANEL_OFFSET_Y = -2,    
+        PANEL_OFFSET_Y = -20,    
 
         ROW_H = 18,                -- Height of each table row (affects virtualization math)
         HEADER_H = 20,             -- Height of table header row
@@ -1231,6 +1231,11 @@ end)
 -- Hover Logic
 -------------------------------------------------
 main:SetScript("OnEnter", function()
+    -- if the user is dragging something don't pop-up the Table
+    if IsMouseButtonDown("LeftButton") then --  or IsMouseButtonDown("RightButton") or IsMouseButtonDown("MiddleButton") 
+        return
+    end
+
     if not cacheReady then
         StartInitialBuild()
         UpdateMain()

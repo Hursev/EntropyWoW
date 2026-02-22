@@ -332,7 +332,23 @@ local guildTotal
 local cacheReady = false
 local buildingCache = false
 
-local sortState = { key="name", asc=true }
+-- Ordered list of sort columns. First entry is the primary sort key.
+-- 'index' is always appended implicitly as the final tiebreaker.
+local sortList = {
+    { key="level", asc=false },
+    { key="name",  asc=true  },
+    { key="rank",  asc=true  },
+}
+
+-- Default sort direction (asc=true means ASC) when a column is first activated
+local SORT_DEFAULT_ASC = {
+    name  = true,
+    zone  = true,
+    mplus = false,
+    rank  = true,
+    level = false,
+    note  = false,
+}
 
 local rosterIndex = 1
 local rosterTotal = 0
@@ -731,62 +747,33 @@ local function cmpRev(v1, v2)
     return v1>v2
 end
 
-local function Compare(a,b)
-    
+-- Maps a sort key to the actual field value on a member record.
+-- 'rank' sorts by numeric rankIndex; everything else uses the named field directly.
+local function FieldValue(member, key)
+    if key == "rank" then return member.rankIndex end
+    return member[key]
+end
+
+local function Compare(a, b)
     if a and not b then return true end
     if b and not a then return false end
 
+    -- Party members always float to the top
     local pa = partyMembers[a.full]
     local pb = partyMembers[b.full]
     if pa ~= pb then return pa end
 
-    local k=sortState.key
-    local asc=sortState.asc
-
-    if k=="name" then
-        -- if a.name~=b.name then return cmpLocal(asc,a.name,b.name) end
-        -- if a.rankIndex~=b.rankIndex then return a.rankIndex < b.rankIndex end
-        -- if a.level~=b.level then return a.level>b.level end
-        -- return a.index<b.index
-
-        if a.name~=b.name then return cmpMain(asc,a.name,b.name) end
-        if a.rankIndex~=b.rankIndex then return cmp(a.rankIndex,b.rankIndex) end
-        if a.level~=b.level then return cmpRev(a.level,b.level) end
-        return a.index<b.index
-
-    elseif k=="mplus" then
-        if a.mplus~=b.mplus then return cmpMain(not asc,a.mplus,b.mplus) end
-        if a.name~=b.name then return cmp(a.name,b.name) end
-        return a.index<b.index
-
-    elseif k=="zone" then
-        if a.zone~=b.zone then return cmpMain(asc, a.zone, b.zone) end
-        if a.rankIndex~=b.rankIndex then return cmp(a.rankIndex,b.rankIndex) end
-        if a.level~=b.level then return cmpRev(a.level,b.level) end
-        if a.name~=b.name then return cmp(a.name,b.name) end
-        return a.index<b.index
-
-    elseif k=="rank" then
-        if a.rankIndex~=b.rankIndex then return cmpMain(asc, a.rankIndex, b.rankIndex) end
-        if a.level~=b.level then return cmpRev(a.level,b.level) end
-        if a.name~=b.name then return cmp(a.name,b.name) end
-        return a.index<b.index
-
-    elseif k=="level" then
-        if a.level~=b.level then return cmpMain(not asc, a.level, b.level) end
-        if a.rankIndex~=b.rankIndex then return cmp(a.rankIndex,b.rankIndex) end
-        if a.name~=b.name then return cmp(a.name,b.name) end
-        return a.index<b.index
-    
-    elseif k=="note" then
-        if a.note~=b.note then return cmpMain(asc,a.note, b.note) end
-        if a.level~=b.level then return cmpRev(a.level,b.level) end
-        if a.name~=b.name then return cmp(a.name,b.name) end
-        return a.index<b.index
+    -- Walk the ordered sort list
+    for _, col in ipairs(sortList) do
+        local va = FieldValue(a, col.key)
+        local vb = FieldValue(b, col.key)
+        if va ~= vb then
+            return cmpMain(col.asc, va, vb)
+        end
     end
 
-    print(string.format("|cFFFF0000[My.Guild]|r Compare Error k='%s'", k))
-    return a.index<b.index
+    -- Final tiebreaker: roster index (always ascending)
+    return a.index < b.index
 end
 
 
@@ -810,7 +797,7 @@ local function RebuildSortedArray()
             print(string.format("|cFFFF0000[My.Guild]|r RebuildSortedArray ERROR - v=nil"))
         end
     end
-    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r RebuildSortedArray n=%d by %s", #cacheArray, sortState.key)) end
+    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r RebuildSortedArray n=%d by %s", #cacheArray, sortList[1] and sortList[1].key or "?")) end
     table.sort(cacheArray, Compare)
 end
 
@@ -1176,12 +1163,31 @@ local function CreateHeaders()
         t:SetText(h.label)
 
         b:SetScript("OnClick", function(self)
-            if sortState.key == self.key then
-                sortState.asc = not sortState.asc
-            else
-                sortState.key = self.key
-                sortState.asc = true
+            local clickedKey = self.key
+
+            -- Find if this key already exists somewhere in the sort list
+            local existingPos = nil
+            for i, col in ipairs(sortList) do
+                if col.key == clickedKey then
+                    existingPos = i
+                    break
+                end
             end
+
+            if existingPos == 1 then
+                -- Already the primary sort key: just flip its direction
+                sortList[1].asc = not sortList[1].asc
+            elseif existingPos then
+                -- Exists but not primary: promote to front, keep its current direction
+                local col = table.remove(sortList, existingPos)
+                 
+                table.insert(sortList, 1, col) -- preserve the previous sort direction by that column
+                -- table.insert(sortList, 1, { key=clickedKey, asc=SORT_DEFAULT_ASC[clickedKey] }) -- use default sort direction for the newly clicked header
+            else
+                -- Not in list yet: insert at front with the column's default direction
+                table.insert(sortList, 1, { key=clickedKey, asc=SORT_DEFAULT_ASC[clickedKey] })
+            end
+
             RefreshTable()
         end)
 

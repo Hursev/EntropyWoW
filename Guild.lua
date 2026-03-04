@@ -354,6 +354,7 @@ local rosterIndex = 1
 local rosterTotal = 0
 
 local playerZone = ""
+local playerName = ""
 local partyMembers = {}
 
 -------------------------------------------------
@@ -382,12 +383,14 @@ main.txt:SetPoint("CENTER")
 -------------------------------------------------
 -- Table Panel + Scroll
 -------------------------------------------------
-local panel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+local panel = CreateFrame("Frame", "EntropyGuildPanel", UIParent, "BackdropTemplate")
 panel:SetFrameStrata("TOOLTIP")
 panel:SetBackdrop({bgFile="Interface/Tooltips/UI-Tooltip-Background"})
 panel:SetBackdropColor(0,0,0,CFG.BG_ALPHA)
 panel:SetSize(CFG.TABLE_W, CFG.TABLE_H)
 panel:Hide()
+table.insert(UISpecialFrames, "EntropyGuildPanel") -- <- With this the system will close the table panel on ESC
+panel:SetScript("OnHide", function() tableOpen = false end)
 
 local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
 scroll:SetPoint("TOPLEFT",5,-CFG.HEADER_H-8)
@@ -844,17 +847,37 @@ end
 
 local visibleRows = math.ceil(CFG.TABLE_H / CFG.ROW_H) + CFG.VIRTUAL_EXTRA_ROWS
 
-local function EnsureRow(i)
-    if panel.rows[i] then return panel.rows[i] end
+local function SetRowBackground(row, highlight)
+    if highlight then
+        row.bg:SetColorTexture(1,1,1,0.1)
+        return
+    end
+
+    if row.data and playerName and row.data.name == playerName then
+        row.bg:SetColorTexture(1, 0.85, 0, 0.18)
+    else
+        row.bg:SetColorTexture(1, 1, 1, 0)
+    end
+end
+
+local function EnsureRow(i, data)
+    if panel.rows[i] then
+        local res = panel.rows[i]
+        res.data=data
+        SetRowBackground(res, false)
+        return res
+    end
 
     local r = CreateFrame("Button", nil, content)
     r:SetHeight(CFG.ROW_H)
     r:SetPoint("LEFT")
     r:SetPoint("RIGHT")
+    
+    r.data=data
 
     r.bg = r:CreateTexture(nil,"BACKGROUND")
     r.bg:SetAllPoints()
-    r.bg:SetColorTexture(1,1,1,0)
+    SetRowBackground(r, false)
 
     r.cols={}
     local x=0
@@ -894,7 +917,7 @@ local function EnsureRow(i)
         index=index
     ]]
     r:SetScript("OnEnter", function(self)
-        self.bg:SetColorTexture(1,1,1,0.1)
+        SetRowBackground(r, true)
 
         if not self.data then return end
 
@@ -907,7 +930,8 @@ local function EnsureRow(i)
     end)
 
     r:SetScript("OnLeave", function(self)
-        self.bg:SetColorTexture(1,1,1,0)
+        SetRowBackground(self, false)
+        --self.bg:SetColorTexture(1,1,1,0)
         GameTooltip:Hide()
     end)
 
@@ -934,6 +958,7 @@ local function EnsureRow(i)
     --if DEBUG and i < 5 then print(string.format("|cFF00FF00[My.Guild]|r EnsureRow create panel %d", i)) end
     return r
 end
+
 local function GetGuildRankColor(r) -- COLOR_TEXT_DEFAULT
     if r < 2 then return COLOR_RANK_1 end
     if r < 4 then return COLOR_RANK_2 end
@@ -943,23 +968,22 @@ local function GetGuildRankColor(r) -- COLOR_TEXT_DEFAULT
     if r < 10 then return COLOR_RANK_6 end
     return COLOR_UNKNOWN
 end
-local function UpdateVisibleRows()
-    -- if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r UpdateVisibleRows visibleRows=%d", visibleRows)) end
 
+local function UpdateVisibleRows()
     local offset = scroll:GetVerticalScroll()
     local firstIndex = math.floor(offset / CFG.ROW_H) + 1
+
+    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r UpdateVisibleRows visibleRows=%d, first=%d", visibleRows, firstIndex)) end
 
     for i=1,visibleRows do
         local dataIndex = firstIndex + i - 1
         local data = cacheArray[dataIndex]
 
-        local row = EnsureRow(i)
+        local row = EnsureRow(i, data) -- also will set row.data=data
 
         if data then
             row:Show()
             row:SetPoint("TOPLEFT",0,-((dataIndex-1)*CFG.ROW_H))
-
-            row.data=data
 
             local cr=RAID_CLASS_COLORS[data.class or "PRIEST"] or {r=1,g=1,b=1}
             local lr,lg,lb=LevelColor(data.level)
@@ -1210,9 +1234,10 @@ GP:SetScript("OnEvent", function(self,e)
     if e=="PLAYER_LOGIN" then
         -- print(string.format("|cFF00FF00[My.Guild]|r SetFont %s, %s", FONT_N, tostring(CFG.FONT_SIZE)))
         playerZone=GetRealZoneText() or ""
+        playerName=UnitName("player") or ""
 
         C_Timer.After(CFG.INITIAL_DELAY,function()
-            if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r Initial")) end
+            --if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r Initial")) end
             StartInitialBuild()
             UpdateMain()
         end)
@@ -1228,12 +1253,12 @@ GP:SetScript("OnEvent", function(self,e)
         --[[]]
             
     elseif e=="ZONE_CHANGED_NEW_AREA" then
-        if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r ZONE_CHANGED_NEW_AREA")) end
+        --if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r ZONE_CHANGED_NEW_AREA")) end
         playerZone=GetRealZoneText() or ""
         if tableOpen then UpdateVisibleRows() end
 
     elseif e=="GROUP_ROSTER_UPDATE" then
-        if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r GROUP_ROSTER_UPDATE")) end
+        --if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r GROUP_ROSTER_UPDATE")) end
         UpdateParty()
         if tableOpen then UpdateVisibleRows() end
     end

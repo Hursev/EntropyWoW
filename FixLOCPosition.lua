@@ -1,4 +1,6 @@
 -- moves the position of Loss-of-Control indicator
+--
+-- ALTERNATIVE: Leatrix Plus addon/Options/Frames/Manage Control
 
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_ENTERING_WORLD")

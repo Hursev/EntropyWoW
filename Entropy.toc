@@ -17,5 +17,7 @@ GuildTagFix.lua
 StaticTextOverlay.lua
 Guild.lua
 BossCastTTS.lua
-FixLOCPosition.lua
+
+# Disabled because we can do that with Leatrix Plus addon/Options/Frames/Manage Control
+# FixLOCPosition.lua
 test.lua

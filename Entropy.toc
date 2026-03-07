@@ -18,6 +18,10 @@ StaticTextOverlay.lua
 Guild.lua
 BossCastTTS.lua
 
+AddItemStackInfo.lua
+
+--CursorCooldown.lua
+
 # Disabled because we can do that with Leatrix Plus addon/Options/Frames/Manage Control
 # FixLOCPosition.lua
 test.lua

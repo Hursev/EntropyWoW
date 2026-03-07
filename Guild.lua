@@ -52,6 +52,8 @@ local CFG = {
         REGION = "us",             -- RaiderIO region used when querying profiles
 
         VIRTUAL_EXTRA_ROWS = 3,    -- Extra rows rendered above/below viewport to prevent pop-in
+
+        HOVER_DELAY_TO_OPEN = 0.25,-- how long in seconds the user need to keep the mouse over the main panel to open the Guld Table
     }
 --    }
 --}
@@ -1267,9 +1269,10 @@ end)
 -------------------------------------------------
 -- Hover Logic
 -------------------------------------------------
+local hoverPending = false
+
 main:SetScript("OnEnter", function()
-    -- if the user is dragging something don't pop-up the Table
-    if IsMouseButtonDown("LeftButton") then --  or IsMouseButtonDown("RightButton") or IsMouseButtonDown("MiddleButton") 
+    if IsMouseButtonDown("LeftButton") then
         return
     end
 
@@ -1277,10 +1280,18 @@ main:SetScript("OnEnter", function()
         StartInitialBuild()
         UpdateMain()
     end
-    OpenTable()
+
+    hoverPending = true
+    C_Timer.After(CFG.HOVER_DELAY_TO_OPEN, function()
+        if hoverPending then
+            hoverPending = false
+            OpenTable()
+        end
+    end)
 end)
 
 main:SetScript("OnLeave", function()
+    hoverPending = false
     C_Timer.After(0.1,function()
         if not MouseIsOver(panel) then CloseTable() end
     end)

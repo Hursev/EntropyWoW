@@ -82,7 +82,7 @@ local function UpdateOverlay()
     local newSpec = LastClassSpec == (class .. specIndex)
     
     if not specIndex or not OVERLAY_CONFIG[class] or not OVERLAY_CONFIG[class][specIndex] then
-        print(string.format("|cFFFF0000[StaticText]|r Static Texts: no config for %s spec %d", class, specIndex))
+        --print(string.format("|cFFFF0000[StaticText]|r Static Texts: no config for %s spec %d", class, specIndex))
         return
     end
 

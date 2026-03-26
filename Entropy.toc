@@ -1,9 +1,10 @@
 ## Interface: 120000
 ## Title: Entropy Addon
 ## Notes:  My Collection of LUA scripts.
-## Author: Hursev
+## Author: EntropyCat
 ## Version: 1.0
 ## Category: !My
+## SavedVariables: EntropyBossEvents
 
 # Libs
 # Disabled
@@ -20,8 +21,11 @@ BossCastTTS.lua
 
 AddItemStackInfo.lua
 
---CursorCooldown.lua
+CursorCooldown.lua
+
+WhichGroupIsThisGgain.lua
 
 # Disabled because we can do that with Leatrix Plus addon/Options/Frames/Manage Control
-# FixLOCPosition.lua
+FixLOCPosition.lua
 test.lua
+

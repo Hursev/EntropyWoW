@@ -54,6 +54,8 @@ local CFG = {
         VIRTUAL_EXTRA_ROWS = 3,    -- Extra rows rendered above/below viewport to prevent pop-in
 
         HOVER_DELAY_TO_OPEN = 0.25,-- how long in seconds the user need to keep the mouse over the main panel to open the Guld Table
+
+        MIN_BOTTOM_SPACE = 50,     -- min space from the bottom of the table to the bottom of the screen
     }
 --    }
 --}
@@ -357,6 +359,7 @@ local rosterTotal = 0
 
 local playerZone = ""
 local playerName = ""
+local playerRealm = ""
 local partyMembers = {}
 
 -------------------------------------------------
@@ -657,12 +660,14 @@ local function ProcessChunk()
         local res = BuildMemberEntry(rosterIndex)
         rosterIndex=rosterIndex+1
         processed=processed+1
+        --[[
         if DEBUG and res then
             if DEBUG_log > 0 then
                 DEBUG_log = DEBUG_log - 1
                 print(string.format("|cFF00FF00[My.Guild]|r BuildMemberEntry(%d) name: %s", rosterIndex, res.name))
             end
         end
+        ]]
     end
 
     if rosterIndex<=rosterTotal then
@@ -802,7 +807,7 @@ local function RebuildSortedArray()
             print(string.format("|cFFFF0000[My.Guild]|r RebuildSortedArray ERROR - v=nil"))
         end
     end
-    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r RebuildSortedArray n=%d by %s", #cacheArray, sortList[1] and sortList[1].key or "?")) end
+    -- if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r RebuildSortedArray n=%d by %s", #cacheArray, sortList[1] and sortList[1].key or "?")) end
     table.sort(cacheArray, Compare)
 end
 
@@ -810,13 +815,11 @@ end
 -------------------------------------------------
 -- Virtualization
 -------------------------------------------------
-local function PrintRaiderIODetails(member)
+local function PrintRaiderIODetailsByName(name, realm)
     if not RaiderIO or not RaiderIO.GetProfile then
         print("RaiderIO not available")
         return
     end
-
-    local name, realm = member.name, member.realm
 
     local profile = RaiderIO.GetProfile(name, realm)
     if not profile then
@@ -847,6 +850,11 @@ local function PrintRaiderIODetails(member)
     PrintNonZero("|cFF00FF00[My.Guild]|r 15+ Runs: ", p.keystoneMilestone15);
 end
 
+local function PrintRaiderIODetails(member)
+    local name, realm = member.name, member.realm
+    PrintRaiderIODetailsByName(name, realm)
+end
+
 local visibleRows = math.ceil(CFG.TABLE_H / CFG.ROW_H) + CFG.VIRTUAL_EXTRA_ROWS
 
 local function SetRowBackground(row, highlight)
@@ -854,11 +862,15 @@ local function SetRowBackground(row, highlight)
         row.bg:SetColorTexture(1,1,1,0.1)
         return
     end
-
-    if row.data and playerName and row.data.name == playerName then
-        row.bg:SetColorTexture(1, 0.85, 0, 0.18)
-    else
-        row.bg:SetColorTexture(1, 1, 1, 0)
+    
+    if row.data and playerName then
+        if row.data.name == playerName then
+            row.bg:SetColorTexture(1, 0.85, 0, 0.18)
+        elseif partyMembers[row.data.full] then
+            row.bg:SetColorTexture(0.85, 0.85, 0, 0.13)
+        else
+            row.bg:SetColorTexture(1, 1, 1, 0)
+        end
     end
 end
 
@@ -975,7 +987,7 @@ local function UpdateVisibleRows()
     local offset = scroll:GetVerticalScroll()
     local firstIndex = math.floor(offset / CFG.ROW_H) + 1
 
-    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r UpdateVisibleRows visibleRows=%d, first=%d", visibleRows, firstIndex)) end
+    --if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r UpdateVisibleRows visibleRows=%d, first=%d", visibleRows, firstIndex)) end
 
     for i=1,visibleRows do
         local dataIndex = firstIndex + i - 1
@@ -1046,14 +1058,19 @@ local function ClampPanelToScreen(frame)
     local left = frame:GetLeft()
     local right = frame:GetRight()
     local top = frame:GetTop()
-    local bottom = frame:GetBottom()
+    local bottom = frame:GetBottom() 
+
+    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r Screen height: %d", sh)) end
+    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r My Bottom: %d", bottom)) end
 
     local dx, dy = 0,0
 
     if left < 0 then dx = -left end
     if right > sw then dx = sw - right end
-    if bottom < 0 then dy = -bottom end
+    if bottom < CFG.MIN_BOTTOM_SPACE then dy = CFG.MIN_BOTTOM_SPACE - bottom end
     if top > sh then dy = sh - top end
+
+    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r Adjust Bottom: %d", dy)) end
 
     if dx ~= 0 or dy ~= 0 then
         local p, rel, rp, x, y = frame:GetPoint(1)
@@ -1237,6 +1254,7 @@ GP:SetScript("OnEvent", function(self,e)
         -- print(string.format("|cFF00FF00[My.Guild]|r SetFont %s, %s", FONT_N, tostring(CFG.FONT_SIZE)))
         playerZone=GetRealZoneText() or ""
         playerName=UnitName("player") or ""
+        playerRealm = GetRealmName() or ""
 
         C_Timer.After(CFG.INITIAL_DELAY,function()
             --if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r Initial")) end
@@ -1265,6 +1283,53 @@ GP:SetScript("OnEvent", function(self,e)
         if tableOpen then UpdateVisibleRows() end
     end
 end)
+
+-------------------------------------------------
+-- Chat Events
+-------------------------------------------------
+--[[
+            This works, but Raider.io addon already does similar with Shift-click
+
+]]        
+local oldSetItemRef = SetItemRef
+
+-- Utility: split "Name-Realm" safely
+local function SplitPlayer(full)
+    local name, realm = full:match("([^%-]+)%-(.+)")
+    if not name then
+        -- No realm included (same realm as player)
+        return full, nil
+    end
+
+    -- Normalize realm: remove spaces
+    local realmNoSpace = realm:gsub("%s+", "")
+
+    return name, realm, realmNoSpace
+end
+
+function SetItemRef(link, text, button, chatFrame)
+    local linkType, fullName = link:match("(%a+):([^:]+)")
+
+    -- if linkType == "player" and not IsShiftKeyDown() and not IsControlKeyDown() then
+    if linkType == "player" and IsShiftKeyDown() then
+        -- Your custom reaction here
+        -- print("Player clicked:", fullName)
+        -- print("Current Player:", playerName, ", playerRealm:", playerRealm)
+
+        local name, realm, realmNoSpace = SplitPlayer(fullName)
+
+        if (realm ~= playerRealm) then
+            PrintRaiderIODetailsByName(name, realm)
+        else
+            print("Delegate to raider.io for ", fullName)
+        end
+    end
+
+    -- Fall back to default behavior
+    oldSetItemRef(link, text, button, chatFrame)
+end
+
+
 
 -------------------------------------------------
 -- Hover Logic

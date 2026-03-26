@@ -46,3 +46,5 @@ SlashCmdList["MYTEST"] = function(msg)
     benchmark1(n, "a123123 123123 boss2", "boss");
     benchmark1(n, "a123123 123123 123123", "boss");
 end
+
+-------------- Test Chat

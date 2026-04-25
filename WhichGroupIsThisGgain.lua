@@ -26,7 +26,9 @@ local function OnLfgListApplicationStatus(id, newStatus, oldStatus, desc)
         msg = msg .. string.format(" by |cFFFFFFA0%s|r", group.leaderName)
     end
     
+    if action == "invited" then print("LFG: |cFF00FF00invited -----------------------|r") end
     print(msg)
+    if action == "invited" then print("LFG: |cFF00FF00invited -----------------------|r") end
 end
 
 

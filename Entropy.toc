@@ -1,8 +1,8 @@
-## Interface: 120000
+## Interface: 120005
 ## Title: Entropy Addon
 ## Notes:  My Collection of LUA scripts.
 ## Author: EntropyCat
-## Version: 1.0
+## Version: 1.1
 ## Category: !My
 ## SavedVariables: EntropyBossEvents
 
@@ -11,21 +11,35 @@
 # embeds.xml
 
 # Core
-CombatEndDisplay.lua
-ReadyCheckReminder.lua
 Reload.lua
-GuildTagFix.lua
-StaticTextOverlay.lua
 Guild.lua
-BossCastTTS.lua
 
 AddItemStackInfo.lua
 
 CursorCooldown.lua
+CursorLocator.lua
 
+# M+
+BossCastTTS.lua
 WhichGroupIsThisGgain.lua
+CombatEndDisplay.lua
+ReadyCheckReminder.lua
 
-# Disabled because we can do that with Leatrix Plus addon/Options/Frames/Manage Control
+# doesn't work in Midnight
+# PartyLoot.lua
+
+# We should be able to do FixLOCPosition with Leatrix Plus addon/Options/Frames/Manage Control. But I don't think it is reliable.
 FixLOCPosition.lua
+
+# Flips F between interact and PrayerOfHealing
+MyKeyBinds.lua
+
 test.lua
 
+# Fix other addons
+FixDominos.lua
+GuildTagFix.lua
+
+# Diabled
+#
+# StaticTextOverlay.lua

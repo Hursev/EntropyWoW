@@ -326,11 +326,12 @@ SLASH_ENTROPY2 = "/my"
 SlashCmdList["ENTROPY"] = function()
     AceConfigDialog:Open("Entropy_Guild")
 end
+
 ]]
 -------------------------------------------------
 -- State
 -------------------------------------------------
-local cacheByName = {}
+local cacheByName = {} -- by full name
 local cacheArray = {} -- sorted list reference
 local guildTotal
 local cacheReady = false
@@ -359,8 +360,15 @@ local rosterTotal = 0
 
 local playerZone = ""
 local playerName = ""
+local playerNameAsTableOfOne = {} -- table that contain the playerName
 local playerRealm = ""
 local partyMembers = {}
+
+-- Active Guild Members -> currently that's the most recent people in the guild chat
+-- FIFO list and table [full name]->true
+local activeGuildMembersMap = {} -- set of fullName->true for the Active Guild Members
+local activeGuildMembersFIFO = {} -- FIFO list of fullName of recent Active Guild Members
+local ACTIVE_MEMBERS_LIMIT = 10 -- keep max 10
 
 -------------------------------------------------
 -- Fonts
@@ -430,7 +438,7 @@ headerShadow:SetGradientAlpha(
 
 
 -------------------------------------------------
--- String Helpers (No regex)
+-- String Helpers
 -------------------------------------------------
 local function StripRealm(full)
     if not full then return "" end
@@ -445,23 +453,67 @@ local function SplitFull(full)
     return string.sub(full,1,pos-1), string.sub(full,pos+1)
 end
 
+local function SplitPlayerFullName(full)
+    local name, realm = full:match("([^%-]+)%-(.+)")
+    if not name then
+        return full, nil
+    end
+
+    -- Normalize realm: remove spaces
+    local realmNoSpace = realm:gsub("%s+", "")
+    return name, realm, realmNoSpace
+end
+
 local function IsNilString(a)
     if a == nil then return "is nil" end
     return "is not nil"
 end
 
+-- if value > 0 prints text..value and return 1
+-- else returns 0 (i.e. 0 lines printed)
 local function PrintNonZero(text, value)
     if (value and value > 0) then
         print(text .. value)
+        return 1
     end
+    return 0
 end
 
 local function PrintTable(p)
-    if DEBUG then
-        for key, value in pairs(p) do
-            print(key .. " = " .. tostring(value))
+    for key, value in pairs(p) do
+        print(key .. " = " .. tostring(value))
+    end
+end
+
+local function Trim(s)
+    if s then 
+        return s:match("^%s*(.-)%s*$")
+    end
+    return s
+end
+
+--- Formats a string with a color prefix for WoW chat/print output.
+-- @param text string  The text to colorize
+-- @param color table  {r, g, b} each in range [0,1]
+-- @return string      The colorized string with |cAARRGGBB...|r wrapping
+local function Colorize(text, arrColorRGB)
+    local r = math.floor(arrColorRGB[1] * 255)
+    local g = math.floor(arrColorRGB[2] * 255)
+    local b = math.floor(arrColorRGB[3] * 255)
+    return string.format("|cFF%02X%02X%02X%s|r", r, g, b, text)
+end
+
+-------------------------------------------------
+-- Array Functions
+-------------------------------------------------
+
+local function arrayIndexOf(t, value)
+    for i = 1, #t do
+        if t[i] == value then
+            return i
         end
     end
+    return nil
 end
 
 -------------------------------------------------
@@ -515,6 +567,20 @@ local function MPlusColor(score)
     if c then return c.r,c.g,c.b end
 
     return 1,1,1
+end
+
+local function GetGuildRankColor(r) -- COLOR_TEXT_DEFAULT
+    if r < 2 then return COLOR_RANK_1 end
+    if r < 4 then return COLOR_RANK_2 end
+    if r < 6 then return COLOR_RANK_3 end
+    if r < 8 then return COLOR_RANK_4 end
+    if r < 9 then return COLOR_RANK_5 end
+    if r < 10 then return COLOR_RANK_6 end
+    return COLOR_UNKNOWN
+end
+
+local function ColorGuildRankText(rankString, rankIndex)
+    return Colorize(rankString, GetGuildRankColor(rankIndex))
 end
 
 -------------------------------------------------
@@ -768,9 +834,19 @@ local function Compare(a, b)
     if a and not b then return true end
     if b and not a then return false end
 
+    -- the player at top
+    local pa = playerNameAsTableOfOne[a.full]
+    local pb = playerNameAsTableOfOne[b.full]
+    if pa ~= pb then return pa end
+
     -- Party members always float to the top
-    local pa = partyMembers[a.full]
-    local pb = partyMembers[b.full]
+    pa = partyMembers[a.full]
+    pb = partyMembers[b.full]
+    if pa ~= pb then return pa end
+
+    -- Active membert at top
+    pa = activeGuildMembersMap[a.full]
+    pb = activeGuildMembersMap[b.full]
     if pa ~= pb then return pa end
 
     -- Walk the ordered sort list
@@ -821,33 +897,51 @@ local function PrintRaiderIODetailsByName(name, realm)
         return
     end
 
+    local fullName = name .. "-" .. realm;
+    local guildDetails = ""
+    if cacheByName then
+        local data = cacheByName[fullName]
+        if data then 
+            guildDetails = " " .. ColorGuildRankText(data.rank, data.rankIndex)
+            if data.note and #data.note > 0 then 
+                guildDetails = guildDetails .. " (" .. data.note .. ")"
+            end
+            --officerNote
+        end
+    end
+
     local profile = RaiderIO.GetProfile(name, realm)
     if not profile then
-        print(string.format("|cFF00FF00[My.Guild]|r No RaiderIO data for %s, %s", name, realm))
+        print(string.format("|cFF00FF00[My.Guild]|r No RaiderIO data for %s, %s%s", name, realm, guildDetails))
         return
     end
     
-    print("|cFF00FF00[My.Guild]|r " .. name .. "-" .. realm ..":")
+
+    print("|cFF00FF00[My.Guild]|r " .. fullName .. ":" .. guildDetails)
 
     local p = profile.mythicKeystoneProfile
     --PrintTable(p)
 
     local score = p.currentScore or 0
     local previousScore = p.previousScore or 0
+    local maxDungeonLevel = p.maxDungeonLevel or 0
     if (previousScore > score) then
-        print("|cFF00FF00[My.Guild]|r M+ Score: " .. score .. " (prev:" .. previousScore .. ")")
+        print("|cFF00FF00[My.Guild]|r M+ Score: " .. score .. " (prev:" .. previousScore .. ") Max Key: " .. maxDungeonLevel)
     else
-        print("|cFF00FF00[My.Guild]|r M+ Score: " .. score)
+        print("|cFF00FF00[My.Guild]|r M+ Score: " .. score .. ", Max Key: " .. maxDungeonLevel)
     end
     if p.mainCurrentScore and p.mainCurrentScore > score then
         PrintNonZero("|cFF00FF00[My.Guild]|r Main's Score:", p.mainCurrentScore); -- also p.mplusMainCurrent.score
     end
-    PrintNonZero("|cFF00FF00[My.Guild]|r Max Key: ", p.maxDungeonLevel);
-    PrintNonZero("|cFF00FF00[My.Guild]|r 4+  Runs: ", p.keystoneMilestone4);
-    PrintNonZero("|cFF00FF00[My.Guild]|r 7+  Runs: ", p.keystoneMilestone7);
-    PrintNonZero("|cFF00FF00[My.Guild]|r 10+ Runs: ", p.keystoneMilestone10);
-    PrintNonZero("|cFF00FF00[My.Guild]|r 12+ Runs: ", p.keystoneMilestone12);
-    PrintNonZero("|cFF00FF00[My.Guild]|r 15+ Runs: ", p.keystoneMilestone15);
+    
+    -- PrintNonZero("|cFF00FF00[My.Guild]|r Max Key: ", p.maxDungeonLevel);
+    
+    local printLimit = 2 -- print only top 2 buckets
+    local n = PrintNonZero("|cFF00FF00[My.Guild]|r 15+ Runs: ", p.keystoneMilestone15);
+    if n < printLimit then n = n + PrintNonZero("|cFF00FF00[My.Guild]|r 12+ Runs: ", p.keystoneMilestone12); end
+    if n < printLimit then n = n + PrintNonZero("|cFF00FF00[My.Guild]|r 10+ Runs: ", p.keystoneMilestone10); end
+    if n < printLimit then n = n + PrintNonZero("|cFF00FF00[My.Guild]|r 7+  Runs: ", p.keystoneMilestone7); end
+    if n < printLimit then n = n + PrintNonZero("|cFF00FF00[My.Guild]|r 4+  Runs: ", p.keystoneMilestone4); end
 end
 
 local function PrintRaiderIODetails(member)
@@ -866,11 +960,15 @@ local function SetRowBackground(row, highlight)
     if row.data and playerName then
         if row.data.name == playerName then
             row.bg:SetColorTexture(1, 0.85, 0, 0.18)
-        elseif partyMembers[row.data.full] then
-            row.bg:SetColorTexture(0.85, 0.85, 0, 0.13)
-        else
-            row.bg:SetColorTexture(1, 1, 1, 0)
+            return
         end
+
+        if partyMembers[row.data.full] then
+            row.bg:SetColorTexture(0.85, 0.85, 0, 0.13)
+            return
+        end
+
+        row.bg:SetColorTexture(1, 1, 1, 0)
     end
 end
 
@@ -973,16 +1071,6 @@ local function EnsureRow(i, data)
     return r
 end
 
-local function GetGuildRankColor(r) -- COLOR_TEXT_DEFAULT
-    if r < 2 then return COLOR_RANK_1 end
-    if r < 4 then return COLOR_RANK_2 end
-    if r < 6 then return COLOR_RANK_3 end
-    if r < 8 then return COLOR_RANK_4 end
-    if r < 9 then return COLOR_RANK_5 end
-    if r < 10 then return COLOR_RANK_6 end
-    return COLOR_UNKNOWN
-end
-
 local function UpdateVisibleRows()
     local offset = scroll:GetVerticalScroll()
     local firstIndex = math.floor(offset / CFG.ROW_H) + 1
@@ -1018,11 +1106,19 @@ local function UpdateVisibleRows()
             row.cols.name:SetTextColor(cr.r,cr.g,cr.b)
             row.cols.name:SetText(data.name .. data.afkStatus)
 
-            if data.zone==playerZone then
+            -- Color zone text by 'same zone as player'
+            --
+            --if data.zone==playerZone then
+            --    local c=CFG.ZONE_COLOR
+            --   row.cols.zone:SetTextColor(c[1],c[2],c[3])
+            --else
+
+            -- Color zone text by 'recently active player'
+            --
+            if activeGuildMembersMap[data.full] then
                 local c=CFG.ZONE_COLOR
                 row.cols.zone:SetTextColor(c[1],c[2],c[3])
             else
-                -- row.cols.zone:SetTextColor(1,1,1)
                 row.cols.zone:SetTextColor(unpack(COLOR_TEXT_DEFAULT))
             end
 
@@ -1240,6 +1336,36 @@ local function CreateHeaders()
 end
 CreateHeaders()
 
+-------------------------------------------------------------------
+-- Track Active Guild Members (like active in chat, not just online
+-------------------------------------------------------------------
+
+local function OnPlayerActivity(fullName)
+    if not fullName then
+        print("Error: OnPlayerActivity empty fullName")
+        return
+    end
+    
+    if activeGuildMembersMap[fullName] then
+        -- move at the most recent position in the FIFO
+        local oldIndex = arrayIndexOf(activeGuildMembersFIFO, fullName)
+        if oldIndex then -- always true
+            table.remove(activeGuildMembersFIFO, oldIndex)
+        end
+        table.insert(activeGuildMembersFIFO, fullName)
+    else
+        -- remove the oldest record
+        while #activeGuildMembersFIFO >= ACTIVE_MEMBERS_LIMIT do
+            local oldName = table.remove(activeGuildMembersFIFO, 1)
+            activeGuildMembersMap[oldName] = nil
+        end
+
+        -- add new record
+        activeGuildMembersMap[fullName] = true
+        table.insert(activeGuildMembersFIFO, fullName)
+    end
+end
+
 -------------------------------------------------
 -- Events
 -------------------------------------------------
@@ -1247,13 +1373,15 @@ GP:RegisterEvent("PLAYER_LOGIN")
 GP:RegisterEvent("GUILD_ROSTER_UPDATE")
 GP:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 GP:RegisterEvent("GROUP_ROSTER_UPDATE")
+GP:RegisterEvent("CHAT_MSG_GUILD")
 
-GP:SetScript("OnEvent", function(self,e)
+GP:SetScript("OnEvent", function(self, e, ...)
 
     if e=="PLAYER_LOGIN" then
         -- print(string.format("|cFF00FF00[My.Guild]|r SetFont %s, %s", FONT_N, tostring(CFG.FONT_SIZE)))
         playerZone=GetRealZoneText() or ""
         playerName=UnitName("player") or ""
+        playerNameAsTableOfOne[playerName] = true
         playerRealm = GetRealmName() or ""
 
         C_Timer.After(CFG.INITIAL_DELAY,function()
@@ -1281,55 +1409,65 @@ GP:SetScript("OnEvent", function(self,e)
         --if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r GROUP_ROSTER_UPDATE")) end
         UpdateParty()
         if tableOpen then UpdateVisibleRows() end
+
+    elseif e == "CHAT_MSG_GUILD" then
+        local msg, sender, _, _, _, _, _, _, _, _, _, guid = ...
+
+        if not issecretvalue(sender) then
+            local fullName = Trim(sender) -- for some reason it cames with spaces around
+            OnPlayerActivity(fullName)
+            -- print(string.format("Guild message from: '%s'", fullName))
+            -- print("Chatters :", #activeGuildMembersFIFO, ", first:", activeGuildMembersFIFO[1], ", last:", activeGuildMembersFIFO[#activeGuildMembersFIFO])
+            --[[
+            local c1 = fullName:sub(1, 1)
+            local c2 = fullName:sub(2, 2)
+            local c3 = fullName:sub(3, 3)
+            print(string.format("Guild message from: '%s', chars:'%s','%s','%s'", fullName, c1, c2,c3))
+            local name, realm, realmNoSpace = SplitPlayerFullName(fullName)
+
+            if cacheByName[fullName] then
+                OnPlayerActivity(fullName)
+                print("Chatters :", #activeGuildMembersFIFO, ", first:", activeGuildMembersFIFO[1], ", last:", activeGuildMembersFIFO[#activeGuildMembersFIFO])
+            else
+                local key, value = next(cacheByName)
+                print(string.format("No info in cacheByName for: '%s', cacheArray n=%d, Example key:'%s'", fullName, #cacheArray, key))
+            end
+            ]]
+        end
     end
 end)
 
--------------------------------------------------
--- Chat Events
--------------------------------------------------
---[[
-            This works, but Raider.io addon already does similar with Shift-click
 
-]]        
+-------------------------------------------------
+-- Click on Player in Chat
+-------------------------------------------------
+
+-- hook in the chat stream --
+-----------------------------
 local oldSetItemRef = SetItemRef
-
--- Utility: split "Name-Realm" safely
-local function SplitPlayer(full)
-    local name, realm = full:match("([^%-]+)%-(.+)")
-    if not name then
-        -- No realm included (same realm as player)
-        return full, nil
-    end
-
-    -- Normalize realm: remove spaces
-    local realmNoSpace = realm:gsub("%s+", "")
-
-    return name, realm, realmNoSpace
-end
-
 function SetItemRef(link, text, button, chatFrame)
     local linkType, fullName = link:match("(%a+):([^:]+)")
 
     -- if linkType == "player" and not IsShiftKeyDown() and not IsControlKeyDown() then
-    if linkType == "player" and IsShiftKeyDown() then
-        -- Your custom reaction here
-        -- print("Player clicked:", fullName)
-        -- print("Current Player:", playerName, ", playerRealm:", playerRealm)
+    if linkType == "player" then
+        if IsShiftKeyDown() then
+            -- Your custom reaction here
+            -- print("Player clicked:", fullName)
+            -- print("Current Player:", playerName, ", playerRealm:", playerRealm)
 
-        local name, realm, realmNoSpace = SplitPlayer(fullName)
+            local name, realm, realmNoSpace = SplitPlayerFullName(fullName)
 
-        if (realm ~= playerRealm) then
-            PrintRaiderIODetailsByName(name, realm)
-        else
-            print("Delegate to raider.io for ", fullName)
+            if (realm ~= playerRealm) then
+                PrintRaiderIODetailsByName(name, realm)
+            else
+                print("Delegate to raider.io for ", fullName)
+            end
         end
     end
 
     -- Fall back to default behavior
     oldSetItemRef(link, text, button, chatFrame)
 end
-
-
 
 -------------------------------------------------
 -- Hover Logic
@@ -1379,3 +1517,27 @@ panel:SetScript("OnUpdate", function()
         CloseTable()
     end
 end)
+
+----------
+
+SLASH_GUILDTEST1 = "/guildtest"
+SlashCmdList["GUILDTEST"] = function(msg)
+    print("--------")
+    print("|cFFFF0000[GUILDTEST]|r playerNameAsTableOfOne:")
+    PrintTable(playerNameAsTableOfOne) 
+    
+    print("--------")
+    print("|cFFFF0000[GUILDTEST]|r activeGuildMembersMap:")
+    PrintTable(activeGuildMembersMap) 
+
+    print("--------")
+    print("|cFFFF0000[GUILDTEST]|r activeGuildMembersFIFO:")
+    PrintTable(activeGuildMembersFIFO) 
+ 
+
+    print("--------")
+    print("|cFFFF0000[GUILDTEST]|r partyMembers:")
+    PrintTable(partyMembers) 
+    --
+    --cacheByName
+end

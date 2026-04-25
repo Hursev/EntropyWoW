@@ -101,14 +101,15 @@ local function CreateRingFrame()
     local tex = ringFrame:CreateTexture(nil, "BACKGROUND")
     tex:SetAllPoints()
     tex:SetTexture(CFG_TEXTURE)
-    tex:SetVertexColor(0, 0.6, 1, 1)  -- blue tint
+    tex:SetVertexColor(0, 0.4, 1, 1)  -- blue tint
 
     cooldownFrame = CreateFrame("Cooldown", nil, ringFrame)
     cooldownFrame:SetAllPoints()
     cooldownFrame:SetDrawEdge(false)
     cooldownFrame:SetDrawSwipe(true)
     cooldownFrame:SetSwipeTexture(CFG_TEXTURE)
-    cooldownFrame:SetSwipeColor(0, 1, 0, 1)  -- opaque black, grows clockwise to hide the ring
+    --cooldownFrame:SetSwipeColor(0, 1, 0, 1)  -- opaque black, grows clockwise to hide the ring
+    cooldownFrame:SetSwipeColor(1, 1, .2, 1)  -- yellow-ish
     cooldownFrame:SetReverse(true)            -- swipe grows clockwise (erasing the ring)
     cooldownFrame:SetHideCountdownNumbers(true)
     cooldownFrame:EnableMouse(false)

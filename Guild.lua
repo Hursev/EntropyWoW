@@ -689,7 +689,7 @@ local function BuildMemberEntry(index)
         return res;
     else
         cacheByName[name] = nil
-        return null
+        return nil
     end
 end
 
@@ -1496,7 +1496,9 @@ end)
 main:SetScript("OnLeave", function()
     hoverPending = false
     C_Timer.After(0.1,function()
-        if not MouseIsOver(panel) then CloseTable() end
+        if not panel:IsMouseOver() then
+            CloseTable()
+        end
     end)
 end)
 

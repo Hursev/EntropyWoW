@@ -29,6 +29,9 @@ local function OnLfgListApplicationStatus(id, newStatus, oldStatus, desc)
     if action == "invited" then print("LFG: |cFF00FF00invited -----------------------|r") end
     print(msg)
     if action == "invited" then print("LFG: |cFF00FF00invited -----------------------|r") end
+    if action == "invited" then 
+        C_VoiceChat.SpeakText(1, "Invited for " .. dungeon, 2, 80, true)
+    end
 end
 
 

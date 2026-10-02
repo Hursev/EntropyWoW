@@ -1166,11 +1166,20 @@ local function ClampPanelToScreen(frame)
     if bottom < CFG.MIN_BOTTOM_SPACE then dy = CFG.MIN_BOTTOM_SPACE - bottom end
     if top > sh then dy = sh - top end
 
-    if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r Adjust Bottom: %d", dy)) end
-
     if dx ~= 0 or dy ~= 0 then
-        local p, rel, rp, x, y = frame:GetPoint(1)
+        local p, rel, rp, x, y = frame:GetPoint(1) -- point, relativeTo, relativePoint, xOfs, yOfs
         frame:SetPoint(p, rel, rp, x+dx, y+dy)
+        -- if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r My Bottom: %d", bottom)) end
+        if DEBUG then print(string.format("|cFF00FF00[My.Guild]|r ClampPanelToScreen adjustment by %d/%d to %d:%d", dx, dy, x+dx, y+dy)) end
+
+        -- p, rel, rp, x, y = frame:GetPoint(1)
+        -- print(string.format("|cFF00FF00[My.Guild]|r x/y are now %d:%d", x, y))
+        -- print(string.format("|cFF00FF00[My.Guild]|r point, rel, pelPoint: %s, %s, %s,", p, rel:GetName(), rp))
+        -- 
+        -- local l,r=frame:GetLeft(),frame:GetRight()
+        -- local t,b=frame:GetTop(),frame:GetBottom()
+        -- 
+        -- print(string.format("t,l | b,r = %d, %d | %d, %d", t,l,b,r))
     end
 end
 
@@ -1221,7 +1230,7 @@ local refreshRunning=false
 local function OpenTable()
     if InCombatLockdown() then return end
     if not IsInGuild() then return end
-
+    -- print("[Guild] OpenTable - do it")
     
     local mainCenterX = main:GetLeft() + main:GetWidth()/2
     local mainBottomY = main:GetBottom()
@@ -1237,10 +1246,11 @@ local function OpenTable()
 
     panel:Show()
     tableOpen = true
-
-    ClampPanelToScreen(panel)
+    --print("[Guild] OpenTable - panel:Show()")    
 
     RefreshTable()
+
+    ClampPanelToScreen(panel)
     --[[
         local x,y = GetCursorPosition()
         local s = UIParent:GetEffectiveScale()
@@ -1476,24 +1486,31 @@ local hoverPending = false
 
 main:SetScript("OnEnter", function()
     if IsMouseButtonDown("LeftButton") then
+        if DEBUG then print("[Guild] OnEnter:Enter - ignore - LB down") end
         return
     end
 
     if not cacheReady then
+        if DEBUG then print("[Guild] OnEnter:Enter - ignore - Cache Not Ready") end
         StartInitialBuild()
         UpdateMain()
     end
+    if DEBUG then print("[Guild] OnEnter:Enter - try to open") end    
 
     hoverPending = true
     C_Timer.After(CFG.HOVER_DELAY_TO_OPEN, function()
         if hoverPending then
+            if DEBUG then print("[Guild] OnEnter:InTimer - Let Open") end
             hoverPending = false
             OpenTable()
+        else
+            if DEBUG then print("[Guild] OnEnter:InTimer - hoverPending is false") end
         end
     end)
 end)
 
 main:SetScript("OnLeave", function()
+    if DEBUG then print("[Guild] OnLeave") end
     hoverPending = false
     C_Timer.After(0.1,function()
         if not panel:IsMouseOver() then
@@ -1502,22 +1519,50 @@ main:SetScript("OnLeave", function()
     end)
 end)
 
+-- Checks if the [cursor] position cx,cy is far outside of the panel
+local function IsFarOutside(cx, cy, p1, name)
+    local l,r=p1:GetLeft(),p1:GetRight()
+    local t,b=p1:GetTop(),p1:GetBottom()
+    
+    if DEBUG then print(string.format("test panel %s t,l | b,r = %d, %d | %d, %d", name, t,l,b,r)) end
+
+    return cx<l-CFG.HOVER_CLOSE_DIST or cx>r+CFG.HOVER_CLOSE_DIST 
+        or cy<b-CFG.HOVER_CLOSE_DIST or cy>t+CFG.HOVER_CLOSE_DIST
+end
+
+local lastCursorTestX = 0
+local lastCursorTestY = 0
 panel:SetScript("OnUpdate", function()
 
     if not tableOpen then return end
 
     local cx,cy=GetCursorPosition()
     local s=UIParent:GetEffectiveScale()
-    cx=cx/s
-    cy=cy/s
-
-    local l,r=panel:GetLeft(),panel:GetRight()
-    local t,b=panel:GetTop(),panel:GetBottom()
-
-    if cx<l-CFG.HOVER_CLOSE_DIST or cx>r+CFG.HOVER_CLOSE_DIST
-    or cy<b-CFG.HOVER_CLOSE_DIST or cy>t+CFG.HOVER_CLOSE_DIST then
-        CloseTable()
+    cx=math.floor(cx/s)
+    cy=math.floor(cy/s)
+    
+    if lastCursorTestX == cx and lastCursorTestY == cy then
+        return
     end
+    lastCursorTestX = cx
+    lastCursorTestY = cy
+
+    if IsFarOutside(cx, cy, panel, "table") and IsFarOutside(cx, cy, main, "main ") then
+         if DEBUG then print("[Guild] OnUpdate - CloseTable()") end
+         CloseTable()
+    end
+
+    -- local l,r=panel:GetLeft(),panel:GetRight()
+    -- local t,b=panel:GetTop(),panel:GetBottom()
+    -- 
+    -- if cx<l-CFG.HOVER_CLOSE_DIST or cx>r+CFG.HOVER_CLOSE_DIST
+    -- or cy<b-CFG.HOVER_CLOSE_DIST or cy>t+CFG.HOVER_CLOSE_DIST then
+    --     if DEBUG then print("[Guild] OnUpdate - CloseTable()") end
+    --     -- print(string.format("cx,cy = %d, %d", cx, cy))
+    --     -- print(string.format("l,r | t,b = %d, %d | %d, %d", l,r,t,b))
+    --     -- print(string.format("CFG.HOVER_CLOSE_DIST %d", CFG.HOVER_CLOSE_DIST))
+    --     CloseTable()
+    -- end
 end)
 
 ----------
